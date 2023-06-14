@@ -15,19 +15,20 @@ def funciones():
     guardar_datos()
     encontrar_ruta_critica()
 
+# primer metodo
+# crea calendario y diagrama de gantt
 def guardar_datos():
-    global p
+    # proyecto nodos
+    p = Node('proyecto')  
+    global entrada_vars
     tareas=[]
     dependencias=[]
     for i in range(len(entrada_vars)):
-        # for j in range(num_columnas):
         nodo = entrada_vars[i][0].get()
         duracion = entrada_vars[i][1].get()
         dependencia = entrada_vars[i][2].get()
         tareas.append( (nodo,{"duracion":duracion}) )
 
-
-        # print(f"Dato en la fila {i} columna {j}: {dato}")
         p.add(Node(nodo, duration=int(duracion)))
         if dependencia!="":
             dependencia = dependencia.split(",")
@@ -47,6 +48,7 @@ def guardar_datos():
 
     proj_fecha_inicio = datetime.date.today()
 
+    # calendario 
     proj_calendario = pd.DataFrame([dict(Tarea = key, 
                                     Inicio = datetime.date.today(), 
                                     Fin = datetime.date.today() + datetime.timedelta(int(val['duracion'])), 
@@ -70,72 +72,86 @@ def guardar_datos():
     # Días entre el inicio y el fin de cada tarea
     proj_calendario['dias_inicio_fin'] = proj_calendario.dias_fin - proj_calendario.dias_inicio
 
+    print("\nCalendario")
     print(proj_calendario)
     encontrar_ruta_critica()
 
 
+    #Graficar las actividades en un diagrama de Gantt
+    fig, ax = plt.subplots(1, figsize=(10,4))
+    ax.barh(proj_calendario.Tarea, proj_calendario.dias_inicio_fin, left=proj_calendario.dias_inicio)
+    plt.show()
 
 
 
 
+# segundo metodo
+# imprime todas las rutas, sus duraciones y si hay mas de una ruta critica
+# dibuja los nodos y las aritas, marca en rojo la ruta critica
 def encontrar_ruta_critica():
-    # Crear un grafo dirigido
-    grafo = nx.DiGraph()
-    actividades=[]
-    duraciones=[]
+    global entrada_vars
+    tareas=[]
     dependencias=[]
+    G = nx.DiGraph()
 
-
-
-    # Agregar nodos y duraciones al grafo
-    # for actividad in actividades:
     for i in range(len(entrada_vars)):
+        # for j in range(num_columnas):
         nodo = entrada_vars[i][0].get()
         duracion = entrada_vars[i][1].get()
         dependencia = entrada_vars[i][2].get()
-        grafo.add_node(nodo, duracion=int(duracion))
-        actividades.append(nodo)
-        duraciones.append(duracion)
-
-    # Agregar aristas (dependencias) al grafo
-    # for dependencia in dependencias:
-    for i in range(len(entrada_vars)):
-        nodo = entrada_vars[i][0].get()
-        duracion = entrada_vars[i][1].get()
-        dependencia = entrada_vars[i][2].get()
+        G.add_node(nodo, label=nodo, duration=duracion)
         if dependencia!="":
             dependencia = dependencia.split(",")
             for j in range (len(dependencia)):
-                grafo.add_edge(dependencia[j],nodo)
-                dependencias.append( (nodo,dependencia[j]) )
+                dependencias.append((dependencia[j],nodo))
+    G.add_edges_from(dependencias)
 
-    # Calcular la ruta crítica
-    ruta_critica = nx.algorithms.dag.dag_longest_path(grafo)
 
-    # Calcular la duración total
-    # duracion_total = sum(duraciones[actividad] for actividad in ruta_critica)
+    # Encuentra todas las rutas posibles
+    all_paths = list(nx.all_simple_paths(G, 'Inicio', 'Fin'))
 
-    # return ruta_critica, duracion_total
+    # Calcula la duración de cada ruta
+    path_durations = []
+    print("\nRutas")
+    for path in all_paths:
+        duration = sum(int(G.nodes[n]['duration']) for n in path)
+        path_durations.append((path, duration))
+        print("---")
+        print(path)
+        print(duration)
+        print("---")
 
-        
-    # Crear el grafo y resaltar la ruta crítica
-    grafo = nx.DiGraph()
-    grafo.add_nodes_from(actividades)
-    grafo.add_edges_from(dependencias)
+    # Obtiene la ruta crítica (la de mayor duración)
+    critical_path = max(path_durations, key=lambda x: x[1])[0]
+    print("\nRuta critica metodo")
+    print(critical_path)
+    duracion_max=max(path_durations, key=lambda x: x[1])[1]
+    print(duracion_max)
 
-    pos = nx.spring_layout(grafo,k=5)
+    for path in all_paths:
+        duration = sum(int(G.nodes[n]['duration']) for n in path)
+        if duration==duracion_max and critical_path!=path:
+            print("///////")
+            print(path)
+            print("tambien critica")
+            print("////")
 
-    plt.figure(figsize=(8, 6))
-    nx.draw_networkx_nodes(grafo, pos, node_size=500, node_color='lightblue')
-    nx.draw_networkx_labels(grafo, pos)
-    nx.draw_networkx_edges(grafo, pos, alpha=0.5)
+    # Dibuja el gráfico
+    pos = nx.spring_layout(G, seed=42)
+    nx.draw(G, pos, with_labels=False, node_size=1100, node_color='lightblue', font_size=10, font_color='black')
 
-    # Resaltar la ruta crítica en rojo
-    ruta_critica_edges = [(ruta_critica[i], ruta_critica[i+1]) for i in range(len(ruta_critica)-1)]
-    nx.draw_networkx_edges(grafo, pos, edgelist=ruta_critica_edges, edge_color='red', width=2)
+    # Etiqueta los nodos con nombre y duración
+    node_labels = {n: f"{G.nodes[n]['label']} ({G.nodes[n]['duration']})" for n in G.nodes}
+    nx.draw_networkx_labels(G, pos)
 
+    # Dibuja la ruta crítica con un color diferente
+    nx.draw_networkx_edges(G, pos, edgelist=list(zip(critical_path, critical_path[1:])), edge_color='red', width=2)
+
+    # Muestra el gráfico
+    plt.title("Gráfico de actividades")
     plt.axis('off')
     plt.show()
+
 
 
 
@@ -154,10 +170,8 @@ def agregarFila():
 
 # Crear la ventana principal
 ventana = tk.Tk()
-ventana.geometry("600x600")
-
-# proyecto nodos
-p = Node('proyecto')
+ventana.geometry("400x600")
+ventana.title("CPM")
 
 
 # Datos de ejemplo
@@ -174,12 +188,8 @@ etiqueta = tk.Label(ventana, text="Duracion")
 etiqueta.grid(row=1, column=2)
 
 etiqueta = tk.Label(ventana, text="Dependencia")
-etiqueta.grid(row=1, column=2)
+etiqueta.grid(row=1, column=3)
 
-# Crear las etiquetas de las columnas
-# for j in range(num_columnas):
-#     etiqueta = tk.Label(ventana, text=f"Columna {j}")
-#     etiqueta.grid(row=1, column=j+1)
 
 # Crear las cajas de entrada de datos
 for i in range(num_filas):
@@ -193,12 +203,10 @@ for i in range(num_filas):
 
 # Botón para guardar los datos
 boton_guardar = tk.Button(ventana, text="Guardar", command=guardar_datos)
-# boton_guardar = tk.Button(ventana, text="Guardar", command=funciones)
-
-boton_guardar.grid(row=0, column=0, columnspan=1)
+boton_guardar.grid(row=0, column=1, columnspan=1)
 
 boton_agregar = tk.Button(ventana, text="Agregar", command=agregarFila)
-boton_agregar.grid(row=0, column=1, columnspan=1)
+boton_agregar.grid(row=0, column=2, columnspan=1)
 
 # Iniciar el bucle principal de la ventana
 ventana.mainloop()
